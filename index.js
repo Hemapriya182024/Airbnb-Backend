@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -7,14 +8,12 @@ const cookieParser = require('cookie-parser');
 const imageDownloader = require('image-downloader');
 const multer = require('multer');
 const path = require('path');
+
 require('dotenv').config();
-const mime = require('mime-types');
-
-
 
 // Models
 const User = require('./Models/User.js');
-const Place = require('./Models/Place.js');
+const Place = require('./Models/Place.js');  // Adjusted name based on the routes
 const Booking = require('./Models/Booking.js');
 
 // Constants
@@ -23,10 +22,10 @@ const PORT = process.env.PORT || 5000;
 const bcryptSalt = 10;
 const jwtSecret = process.env.JWT_SECRET;
 
+
+
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URL, {
-  
-})
+mongoose.connect(process.env.MONGO_CONNECTION_STRING)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -39,33 +38,27 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Multer setup for file uploads
 const upload = multer({ dest: 'uploads/' });
 
-// Route Handlers
-// Health Check
-app.get('/', (req, res) => res.json("Server is up and running!"));
-
-
-async function getUserDataFromReq(req) {
+// Helper function to verify JWT and extract user data
+function getUserDataFromReq(req) {
   return new Promise((resolve, reject) => {
-    const token = req.cookies.token; // Or req.headers.authorization if using headers
-    if (!token) return reject(new Error('No token provided'));
+    const token = req.cookies.token; 
+    console.log(token )
+    if (!token) {
+      return reject(new Error('No token provided'));
+    }
 
-    jwt.verify(token, jwtSecret, {}, (err, userData) => {
+    jwt.verify(token, jwtSecret, (err, userData) => {
       if (err) return reject(err);
       resolve(userData);
     });
   });
 }
+// Route Handlers
+app.get('/', (req, res) => res.json("test ok"));
 
-// Dynamic import of 'mime' module
-const getMimeType = async (filePath) => {
-  const mime = await import('mime');
-  return mime.getType(filePath);
-};
-
-// Register a new user
-
+// Register user
 app.post('/register', async (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
+ 
   const {name,email,password} = req.body;
 
   try {
@@ -82,7 +75,7 @@ app.post('/register', async (req,res) => {
 });
 
 app.post('/login', async (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
+ 
   const {email,password} = req.body;
   const userDoc = await User.findOne({email});
   if (userDoc) {
@@ -102,113 +95,177 @@ app.post('/login', async (req,res) => {
     res.json('not found');
   }
 });
+// Get profile
+app.get('/profile', async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    console.log('Cookies:', req.cookies); 
+    if (!token) return res.status(401).json({ error: 'No token provided' });
 
+    const userData = await jwt.verify(token, jwtSecret);
+    const user = await User.findById(userData.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ name: user.name, email: user.email, _id: user._id });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+});
+
+// Logout user
+app.post('/logout', (req, res) => {
+  res.cookie('token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' }).json(true);
+});
+
+// Upload image by link
 app.post('/upload-by-link', async (req, res) => {
   const { link } = req.body;
-  const newName = 'photo' + Date.now() + '.jpg';
-  await imageDownloader.image({
-    url: link,
-    dest: '/tmp/' + newName,
-  });
-
-  // Get MIME type using 'mime-types'
-  const mimeType = mime.lookup('/tmp/' + newName);
-  const url = await uploadToS3('/tmp/' + newName, newName, mimeType);
-  res.json(url);
-});
-const photosMiddleware = multer({dest:'/tmp'});
-app.post('/upload', photosMiddleware.array('photos', 100), async (req,res) => {
-  const uploadedFiles = [];
-  for (let i = 0; i < req.files.length; i++) {
-    const {path,originalname,mimetype} = req.files[i];
-    const url = await uploadToS3(path, originalname, mimetype);
-    uploadedFiles.push(url);
+  const newName = Date.now() + '.jpg';
+  try {
+    await imageDownloader.image({ url: link, dest: path.join(__dirname, 'uploads', newName) });
+    res.json(newName);
+  } catch (error) {
+    console.error('Error downloading image:', error);
+    res.status(500).json({ message: 'Failed to download image', details: error.message });
   }
-  res.json(uploadedFiles);
 });
 
-app.post('/places', (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  const {token} = req.cookies;
-  const {
-    title,address,addedPhotos,description,price,
-    perks,extraInfo,checkIn,checkOut,maxGuests,
-  } = req.body;
-  jwt.verify(token, jwtSecret, {}, async (err, userData) => {
-    if (err) throw err;
+// Upload multiple images
+app.post('/upload', upload.array('photos', 100), (req, res) => {
+  if (req.files) {
+    res.json(req.files.map(file => file.filename));
+  } else {
+    res.status(400).json({ message: 'No files were uploaded.' });
+  }
+});
+
+// Create a new place
+app.post('/places', async (req, res) => {
+  try {
+    const userData = await getUserDataFromReq(req);
+    const { title, address, addedPhotos, description, price, perks, extraInfo, checkIn, checkOut, maxGuests } = req.body;
+
     const placeDoc = await Place.create({
-      owner:userData.id,price,
-      title,address,photos:addedPhotos,description,
-      perks,extraInfo,checkIn,checkOut,maxGuests,
+      owner: userData.id,
+      title,
+      address,
+      photos: addedPhotos,
+      description,
+      perks,
+      extraInfo,
+      checkIn,
+      checkOut,
+      maxGuests,
+      price,
     });
-    res.json(placeDoc);
-  });
+
+    res.status(201).json(placeDoc);
+  } catch (error) {
+    console.error('Error creating place:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
-app.get('/user-places', (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  const {token} = req.cookies;
-  jwt.verify(token, jwtSecret, {}, async (err, userData) => {
-    const {id} = userData;
-    res.json( await Place.find({owner:id}) );
-  });
+// Get all places
+app.get('/places', async (req, res) => {
+  try {
+    const places = await Place.find();
+    res.status(200).json(places);
+  } catch (error) {
+    console.error('Error fetching places:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
-app.get('/places/:id', async (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  const {id} = req.params;
-  res.json(await Place.findById(id));
+// Get a user's places
+app.get('/user-places', async (req, res) => {
+  try {
+    const userData = await getUserDataFromReq(req);
+    const places = await Place.find({ owner: userData.id });
+    res.status(200).json(places);
+  } catch (error) {
+    console.error('Error fetching user places:', error.message);
+    res.status(401).json({ message: 'Unauthorized access: ' + error.message });
+  }
 });
 
-app.put('/places', async (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  const {token} = req.cookies;
-  const {
-    id, title,address,addedPhotos,description,
-    perks,extraInfo,checkIn,checkOut,maxGuests,price,
-  } = req.body;
-  jwt.verify(token, jwtSecret, {}, async (err, userData) => {
-    if (err) throw err;
+// Get a specific place by ID
+app.get('/places/:id', async (req, res) => {
+  try {
+    const place = await Place.findById(req.params.id);
+    place ? res.status(200).json(place) : res.status(404).json({ message: 'Place not found' });
+  } catch (error) {
+    console.error('Error fetching place:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update a place
+app.put('/places', async (req, res) => {
+  try {
+    const userData = await getUserDataFromReq(req);
+    const { id, title, address, addedPhotos, description, perks, extraInfo, checkIn, checkOut, maxGuests, price } = req.body;
+
     const placeDoc = await Place.findById(id);
     if (userData.id === placeDoc.owner.toString()) {
       placeDoc.set({
-        title,address,photos:addedPhotos,description,
-        perks,extraInfo,checkIn,checkOut,maxGuests,price,
+        title,
+        address,
+        photos: addedPhotos,
+        description,
+        perks,
+        extraInfo,
+        checkIn,
+        checkOut,
+        maxGuests,
+        price,
       });
       await placeDoc.save();
-      res.json('ok');
+      res.status(200).json('Place updated successfully');
+    } else {
+      res.status(403).json({ message: 'Unauthorized' });
     }
-  });
+  } catch (error) {
+    console.error('Error updating place:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
-app.get('/places', async (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  res.json( await Place.find() );
-});
-
+// Create a booking
 app.post('/bookings', async (req, res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  const userData = await getUserDataFromReq(req);
-  const {
-    place,checkIn,checkOut,numberOfGuests,name,phone,price,
-  } = req.body;
-  Booking.create({
-    place,checkIn,checkOut,numberOfGuests,name,phone,price,
-    user:userData.id,
-  }).then((doc) => {
-    res.json(doc);
-  }).catch((err) => {
-    throw err;
-  });
+  try {
+    const userData = await getUserDataFromReq(req);
+    const { place, checkIn, checkOut, numberOfGuests, name, phone, price } = req.body;
+
+    const bookingDoc = await Booking.create({
+      place,
+      checkIn,
+      checkOut,
+      numberOfGuests,
+      name,
+      phone,
+      price,
+      user: userData.id,
+    });
+
+    res.status(201).json(bookingDoc);
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
-
-
-app.get('/bookings', async (req,res) => {
-  mongoose.connect(process.env.MONGO_URL);
-  const userData = await getUserDataFromReq(req);
-  res.json( await Booking.find({user:userData.id}).populate('place') );
+// Get user bookings
+app.get('/bookings', async (req, res) => {
+  try {
+    const userData = await getUserDataFromReq(req);
+    const bookings = await Booking.find({ user: userData.id }).populate('place');
+    res.status(200).json(bookings);
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
 // Start server
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
