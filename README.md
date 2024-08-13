@@ -123,6 +123,3 @@ This project is licensed under the MIT License.
 - **GitHub**: [Hemapriya182024](https://github.com/Hemapriya182024)
 - **LinkedIn**: [Hemapriya K](https://www.linkedin.com/in/hemapriya-k-4536a730b/)
 
----
-
-This README now provides a simplified overview of your backend project without AWS S3 and `.env` file details.
