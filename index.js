@@ -13,7 +13,7 @@ require('dotenv').config();
 
 // Models
 const User = require('./Models/User.js');
-const Place = require('./Models/Place.js');  // Adjusted name based on the routes
+const Place = require('./Models/Place.js'); 
 const Booking = require('./Models/Booking.js');
 
 // Constants
@@ -38,25 +38,31 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Multer setup for file uploads
 const upload = multer({ dest: 'uploads/' });
 
-// Helper function to verify JWT and extract user data
-function getUserDataFromReq(req) {
-  return new Promise((resolve, reject) => {
-    const token = req.cookies.token; 
-    console.log(token )
-    if (!token) {
-      return reject(new Error('No token provided'));
-    }
-
-    jwt.verify(token, jwtSecret, (err, userData) => {
-      if (err) return reject(err);
-      resolve(userData);
-    });
-  });
+function createToken(userDoc) {
+  return jwt.sign({ email: userDoc.email, id: userDoc._id }, jwtSecret, {});
 }
+
+
+// Helper function to verify JWT and extract user data
+async function getUserDataFromReq(req) {
+  const token = req.cookies.token;
+  if (!token) {
+    throw new Error('No token provided');
+  }
+
+  try {
+    const userData = jwt.verify(token, jwtSecret);
+    return userData;
+  } catch (err) {
+    throw new Error('Invalid token');
+  }
+}
+
 // Route Handlers
 app.get('/', (req, res) => res.json("test ok"));
 
-// Register user
+// Register a new user
+
 app.post('/register', async (req,res) => {
  
   const {name,email,password} = req.body;
@@ -75,7 +81,7 @@ app.post('/register', async (req,res) => {
 });
 
 app.post('/login', async (req,res) => {
- 
+  
   const {email,password} = req.body;
   const userDoc = await User.findOne({email});
   if (userDoc) {
@@ -95,6 +101,8 @@ app.post('/login', async (req,res) => {
     res.json('not found');
   }
 });
+
+
 // Get profile
 app.get('/profile', async (req, res) => {
   try {
@@ -233,39 +241,31 @@ app.put('/places', async (req, res) => {
 
 // Create a booking
 app.post('/bookings', async (req, res) => {
+  const { checkIn, checkOut, numberOfGuests, name, phone, place, price } = req.body;
+
   try {
-    const userData = await getUserDataFromReq(req);
-    const { place, checkIn, checkOut, numberOfGuests, name, phone, price } = req.body;
-
-    const bookingDoc = await Booking.create({
-      place,
-      checkIn,
-      checkOut,
-      numberOfGuests,
-      name,
-      phone,
-      price,
-      user: userData.id,
+    const booking = new Booking({
+      checkIn, checkOut, numberOfGuests, name, phone, place, price
     });
-
-    res.status(201).json(bookingDoc);
+    await booking.save();
+    res.status(201).json(booking);
   } catch (error) {
-    console.error('Error creating booking:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("Booking failed", error);
+    res.status(500).json({ message: "Booking failed. Please try again." });
   }
 });
 
-// Get user bookings
 app.get('/bookings', async (req, res) => {
   try {
-    const userData = await getUserDataFromReq(req);
-    const bookings = await Booking.find({ user: userData.id }).populate('place');
+    
+    const bookings = await Booking.find().populate('place');
     res.status(200).json(bookings);
   } catch (error) {
     console.error('Error fetching bookings:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
 
 // Start server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
