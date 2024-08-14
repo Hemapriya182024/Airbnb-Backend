@@ -58,7 +58,7 @@ This repository contains the backend code for the Airbnb Clone project, built wi
    npm start
    ```
 
-   The server will run on `http://localhost:5000`.
+   The server will run on `http://localhost:5000/`.
 
 ## Usage
 
@@ -74,7 +74,7 @@ To run the server in development mode with hot-reloading, use:
 npm run dev
 ```
 
-The server will be available at `http://localhost:5000`.
+The server will be available at `http://localhost:8000/`.
 
 ## Screenshots
 
