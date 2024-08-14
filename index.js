@@ -30,7 +30,7 @@ mongoose.connect(process.env.MONGO_CONNECTION_STRING)
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: 'https://mern-capstone.netlify.app/', credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
