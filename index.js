@@ -1,6 +1,6 @@
 
 const express = require('express');
-const cors = require('cors');
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -30,7 +30,8 @@ mongoose.connect(process.env.MONGO_CONNECTION_STRING)
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Middleware
-app.use(cors({ origin: 'https://mern-capstone.netlify.app/', credentials: true }));
+const cors = require('cors');
+app.use(cors({ origin: 'https://mern-capstone.netlify.app/'}));
 app.use(express.json());
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
