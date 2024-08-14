@@ -31,7 +31,7 @@ mongoose.connect(process.env.MONGO_CONNECTION_STRING)
 
 // Middleware
 const cors = require('cors');
-app.use(cors({ origin: 'https://mern-capstone.netlify.app'}));
+app.use(cors({ origin: 'https://mern-capstone.netlify.app',credentials: true}));
 app.use(express.json());
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
