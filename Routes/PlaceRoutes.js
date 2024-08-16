@@ -1,6 +1,6 @@
 const express = require('express');
 const PlaceController = require('../Controllers/PlaceController');
-const AuthMiddleware = require('../Middleware/Authmiddleware');
+const AuthMiddleware = require('../Middleware/AuthMiddleware.js');
 const upload = require('../Middleware/MulterMiddleware');
 
 const router = express.Router();
