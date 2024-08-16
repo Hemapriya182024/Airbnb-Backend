@@ -25,7 +25,7 @@ mongoose.connect(process.env.MONGO_CONNECTION_STRING, {
 .catch((err) => {
   console.error('MongoDB connection error:', err.message);
 });
-app.get('/test', (req, res) => {
+app.get('/', (req, res) => {
   res.status(200).json( {message:"server is healthy"});
 });
 app.use('/api/auth', authRoutes);
