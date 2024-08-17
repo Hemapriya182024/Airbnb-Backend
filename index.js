@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
   credentials: true,
-  origin: process.env.CLIENT_URL,
+  origin:'https://mern-project-liart.vercel.app',
 }));
 PORT=process.env.PORT
 mongoose.connect(process.env.MONGO_CONNECTION_STRING, {
