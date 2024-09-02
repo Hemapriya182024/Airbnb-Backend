@@ -8,6 +8,8 @@ const placeRoutes = require('./Routes/PlaceRoutes');
 const bookingRoutes = require('./Routes/BookingRoutes');
 const errorHandler = require('./Middleware/ErrorHandler');
 
+
+
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -30,9 +32,10 @@ app.get('/', (req, res) => {
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/places', placeRoutes);
-app.use('/api/bookings', bookingRoutes);
-
+app.use('/api', bookingRoutes);
+app.use('/Uploads',express.static(__dirname+'/Uploads'))
 app.use(errorHandler);
+
 
 app.listen( PORT,() => {
   console.log('Server is running on port ',PORT);

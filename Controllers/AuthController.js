@@ -45,8 +45,14 @@ const AuthController = {
   },
 
   logout: (req, res) => {
-    res.cookie('token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' }).json(true);
+    res.cookie('token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/' 
+    }).json({ success: true }); 
   },
+  
 };
 
 module.exports = AuthController;
