@@ -1,58 +1,76 @@
 const bcrypt = require('bcryptjs');
 const User = require('../Models/User');
-const { createToken } = require('../Utils/JwtUtils');
+const generateToken = require('../Utils/JwtUtils');
 
-const AuthController = {
-  register: async (req, res) => {
-    const { name, email, password } = req.body;
+const jwt = require('jsonwebtoken');
 
-    try {
-      const userDoc = await User.create({
-        name,
-        email,
-        password: bcrypt.hashSync(password, 10),
-      });
-      res.json(userDoc);
-    } catch (e) {
-      res.status(422).json(e);
-    }
-  },
 
-  login: async (req, res) => {
-    const { email, password } = req.body;
+let tokenStore = []; // In-memory token store for simplicity
+
+const login = async (req, res) => {
+  const { email, password } = req.body;
+  try {
     const userDoc = await User.findOne({ email });
-
     if (userDoc && bcrypt.compareSync(password, userDoc.password)) {
-      const token = createToken(userDoc);
-      res.cookie('token', token).json(userDoc);
+      const token = generateToken(userDoc);
+      tokenStore.push(token); // Store token (for demonstration purposes)
+      res.status(200).json({ token, userDoc });
     } else {
-      res.status(422).json('Invalid credentials');
+      res.status(422).json("Invalid credentials");
     }
-  },
-
-  profile: async (req, res) => {
-    try {
-      const { id } = req.userData;
-      const user = await User.findById(id);
-      if (user) {
-        res.json({ name: user.name, email: user.email, _id: user._id });
-      } else {
-        res.status(404).json({ error: 'User not found' });
-      }
-    } catch (error) {
-      res.status(401).json({ error: 'Unauthorized' });
-    }
-  },
-
-  logout: (req, res) => {
-    res.cookie('token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/' 
-    }).json({ success: true }); 
-  },
-  
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-module.exports = AuthController;
+const profile = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  try {
+    const decode = jwt.verify(token, process.env.JWT_SECRET);
+    const userDoc = await User.findById(decode.id);
+    if (!userDoc) {
+      res.status(404).json("User not found");
+    } else {
+      res.status(200).json({ userDoc });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const register = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(422).json("User already exists");
+    }
+
+    // Hash password
+    const hashedPassword = bcrypt.hashSync(password, 10);
+
+    // Create new user
+    const user = await User.create({ email, password: hashedPassword });
+
+    // Generate token
+    const token = generateToken(user);
+    res.status(201).json({ token, user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+const logout = (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "Token required" });
+  }
+
+  // Invalidate the token (e.g., by removing it from the token store)
+  tokenStore = tokenStore.filter((storedToken) => storedToken !== token);
+  res.status(200).json({ message: "Logout successful" });
+};
+
+module.exports = { login, profile, logout,register};
